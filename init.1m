@@ -1,0 +1,81 @@
+.\" frcd-s1initd.8/8d/1m 3.0 14 Oct 2019
+.\" ellenor@umbrellix.net
+.Dd August 20, 2021
+.Dt FRCD-S1INITD %%MANSECTION%%
+.Os
+.Sh Name
+.Nm frcd-s1initd
+.Nd HardenedBSD init, as modified by Umbrellix for the Falsix system integration
+.Sh Synopsis
+.Nm
+.Sh Description
+The
+.Xr frcd-s1initd %%MANSECTION%%
+utility is the first userspace stage of the Falsix initialization process, called directly by the HardenedBSD kernel as used in Falsix.
+The function of
+.Xr frcd-s1initd %%MANSECTION%%
+is to run system-dependent initialization scripts, then configure service supervision trees for initial operation, and then
+.Xr execv 3
+into a process supervisor.
+As shipped, SDI is a cut-down version of HardenedBSD
+.Xr rc 8
+which only runs one-shot scripts.
+.Sh Influential kernel environment variables
+.Bl -tag -width "-w size "
+.It init_path
+Read by the kernel. Determines the path to the first initializer (usually /sbin/init).
+.It init_next
+Read by frcd-s1initd. Determines the path to the process supervisor. Not used by stock
+.Xr init 8
+as that program fulfills the task of process supervisor.
+.It rc_script
+Read by frcd-s1initd. Determines the path to the system-dependent initialization scripts.
+.It kld_load
+Read by frcd-s1initd. Determines kernel modules to load before executing rc_script. Full paths are separated by commas. Should not be necessary, but required on some UEFI machines to ennsure console as soon as possible.
+.El
+.Sh Files
+.Bl -tag -width "-w size "
+.It /package/host/umbrellix.net/admin/frcd
+The conventional install path for frcd, blatantly inspired by Professor D. J. Bernstein's slashpackage hierarchy - reference
+.Xr hier.djb 7
+for more information.
+.It .../command/frcd-s1initd
+The stage-1 initializer.
+.It .../etc/rc.d
+.Xr rc 8
+trimmed down so only one-shot initialization, with partial network initialization (static IP addresses, interfaces), remains.
+.El
+.Sh Usage
+Set
+.Xr kenv 2
+init_path to /package/host/umbrellix.net/admin/frcd/command/frcd-s1initd. Set
+.Xr kenv 2
+init_next to the absolute path to your process supervisor. Set
+.Xr kenv 2
+rc_script to the absolute path to your system-dependent initialization scripts.
+.Sh Bugs
+There are likely one or two bugs in frcd. While as a program it is not tasked with much (solely executing the rc_scripts and execv'ing into the service supervisor), the author has run into problems modifying
+.Xr init 8
+in the past. This is a fork of FreeBSD init, so it will likely suffer those same problems.
+.Sh Attributes
+See
+.Xr attributes 5
+if you are on a Solaris or illumos system for a description of the following attributes.
+You do not need to know what this means if you are on any other system.
+For the purpose of this manual page, replace "Sun" in
+.Xr attributes 5
+with "umbrellix.net".
+
+Notification of notifiable broken interfaces will be via the project webpage if you do not have a support deal with us.
+You still probably do not need to know what any of this means, and indeed, this table may not be correctly formulated; the developers of irca do not believe that software outside of the core system is actually even meant to have an attributes table.
+.TS
+box;
+ c | c
+ l | l .
+Attribute type	Attribute value
+=
+Interface stability	Volatile
+_
+Architecture	Any supported by HardenedBSD (presently amd64 and aarch64)
+.TE
+We commit to ensuring that as much stability as possible is maintained in the interface after version 1.0 of frcd-s1initd is released.

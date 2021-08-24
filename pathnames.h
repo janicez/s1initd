@@ -40,6 +40,7 @@
 #define	_PATH_INITLOG		"/var/log/init.log"
 #define	_PATH_SLOGGER		"/sbin/session_logger"
 #define	_PATH_RUNCOM		"/etc/rc"
+#define	_PATH_INITNEXt		"/initnext" // XXX: symlink to service supervisor
 #define	_PATH_RUNDOWN		"/etc/rc.shutdown"
 #define	_PATH_RUNFINAL		"/etc/rc.final"
 #define	_PATH_REROOT		"/dev/reroot"

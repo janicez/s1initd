@@ -254,6 +254,7 @@ invalid:
 			errx(1, "already running");
 	}
 
+	// #FRCDNOTES0001.01
 	init_path_argv0 = strdup(argv[0]);
 	if (init_path_argv0 == NULL)
 		err(1, "strdup");
@@ -267,6 +268,7 @@ invalid:
 	/*
 	 * Create an initial session.
 	 */
+	// #FRCDNOTES0001.02
 	if (setsid() < 0 && (errno != EPERM || getsid(0) != 1))
 		warning("initial setsid() failed: %m");
 
@@ -281,6 +283,7 @@ invalid:
 	 * This code assumes that we always get arguments through flags,
 	 * never through bits set in some random machine register.
 	 */
+	// #FRCDNOTES0001.03
 	while ((c = getopt(argc, argv, "dsfr")) != -1)
 		switch (c) {
 		case 'd':
@@ -303,6 +306,7 @@ invalid:
 	if (optind != argc)
 		warning("ignoring excess arguments");
 
+	// #FRCDNOTES0001.04
 	/*
 	 * We catch or block signals rather than ignore them,
 	 * so that they get reset on exec.
@@ -326,10 +330,12 @@ invalid:
 	/*
 	 * Paranoia.
 	 */
+	// #FRCDNOTES0001.05
 	close(0);
 	close(1);
 	close(2);
 
+	// #FRCDNOTES0001.06
 	if (kenv(KENV_GET, "init_exec", kenv_value, sizeof(kenv_value)) > 0) {
 		replace_init(kenv_value);
 		_exit(0); /* reboot */
@@ -352,6 +358,7 @@ invalid:
 	 * If "/" and "/dev" have the same device number,
 	 * then it hasn't been mounted yet.
 	 */
+	// #FRCDNOTES0002.01
 	if (!devfs) {
 		struct stat stst;
 		dev_t root_devno;
@@ -364,6 +371,7 @@ invalid:
 			devfs++;
 	}
 
+	// #FRCDNOTES0001.07
 	if (devfs) {
 		struct iovec iov[4];
 		char *s;
@@ -400,6 +408,7 @@ invalid:
 			free(s);
 	}
 
+	// #FRCDNOTES0001.08
 	if (initial_transition != reroot_phase_two) {
 		/*
 		 * Unmount reroot leftovers.  This runs after init(8)
@@ -412,8 +421,30 @@ invalid:
 
 	/*
 	 * Start the state machine.
+	 * FALSIX TODO: Instead, re-execute init_next.
 	 */
-	transition(initial_transition);
+	// #FRCDNOTES0001.09
+	if (kenv(KENV_GET, "rc_script", kenv_value, sizeof(kenv_value)) > 0) {
+		state_func_t next_transition;
+
+		if ((next_transition = run_script(kenv_value)) != NULL)
+			initial_transition = (state_t) next_transition;
+	} else {
+		state_func_t next_transition;
+
+		if ((next_transition = run_script(_PATH_RUNCOM)) != NULL)
+			initial_transition = (state_t) next_transition;
+	}
+
+	//transition(initial_transition);
+
+	if (kenv(KENV_GET, "init_next", kenv_value, sizeof(kenv_value)) > 0) {
+		replace_init(kenv_value);
+		_exit(0); /* reboot if not */
+	} else {
+		replace_init(_PATH_INITNEXT);
+		_exit(0); /* reboot if not*/
+	}
 
 	/*
 	 * Should never reach here.
@@ -1038,6 +1069,7 @@ runcom(void)
 static void
 execute_script(char *argv[])
 {
+	//#FRCDNOTES0001.0a
 	struct sigaction sa;
 	const char *shell, *script;
 	int error;
@@ -1081,6 +1113,7 @@ execute_script(char *argv[])
 static void
 replace_init(char *path)
 {
+	//#FRCDNOTES0001.0b
 	char *argv[3];
 	char sh[] = "sh";
 

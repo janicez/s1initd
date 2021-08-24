@@ -1,0 +1,93 @@
+FRCD NOTES
+
+Which code paths are actually reached if you short circuit main()?
+
+Which of these are internal, and which of these are external?
+
+#FRCDNOTES0001.01 Begin main
+ strdup(), err(), openlog()
+#FRCDNOTES0001.02 Create the first session and create the root user
+ setsid(), getsid(), warning(), setlogin()
+#FRCDNOTES0001.03 Parse the flags that make init behave differently under:
+  s: operator requested *single-user mode* (to examine and hopefully repair
+     a severely broken system with an intact filesystem, example)
+  f: operator requested quicker run-up by skipping fsck during SDI
+     (RUNCOM, traditionally /etc/rc) *FASTBOOT*
+  r: init is being started pursuant to a *reroot*
+  d: sets int *devfs* to 1. the significance of this is unclear - yet.
+     see #FRCDNOTES0002.xx
+ getopt()
+#FRCDNOTES0001.04 Catch or block signals.
+  Our handling of signals, inherited from HBSD, is by catching or blocking,
+  so that they're reset when we run execv()/execl() type calls.
+  We won't be spending long alive as FRCD-S1INITD. Signal handling will be
+  reset when the system enters stage 2, as we execute kenv(2) init_next
+  rather than transitioning to service supervision through /etc/ttys
+  (which is grossly incomplete and only used for getties, a service which
+  could be supervised by s6-svscan, the recommended frcd-s2initd for the
+  time being).
+ handle(), sigfillset(), delset(), sigprocmask(), sigemptyset(), sigaction()
+#FRCDNOTES0001.05 Paranoidly close fds 0, 1 and 2.
+  Why?
+
+  It doesn't appear to cause any harm. frcd-s1initd will keep it.
+ close()
+#FRCDNOTES0001.06 kenv(2) init tunables.
+ kenv() ×3
+  init_exec: replace init with this binary.
+ replace_init()
+  init_script: run this script/binary before RUNCOM. (this was unclear in
+   man init(8) - it made it seem like init_script REPLACED RUNCOM.)
+ assign next_transition to result(run_script(kenv_value))
+ assign initial_transition to next_transition
+  init_chroot: directory to which frcd-s1initd(1M) changes root
+   before doing anything else
+ NOTREACHED _exit(), assign to run_script()
+
+#FRCDNOTES0001.07 int devfs >0
+  At this stage, the devfs comes to be mounted.
+  A struct iovec[4] is populated with four char arrays on the stack and
+  a char array on the heap is used to strip trailing slashes.
+  The char array on the heap is then freed.
+ nmount(), free()
+
+#FRCDNOTES0001.08 initial_transition != reroot_phase_two
+  Unmount reroot leftovers.  
+ unmount(), warning()
+
+#FRCDNOTES0001.09 kenv(2) init tunables, executing the next initializer.
+ kenv() ×2
+  rc_script: run this script/binary as RUNCOM. (Existing Falsix internal
+   /etc/rc reads this and execs this from the shell.)
+   Likely unnecessary to reassign initial_transition - or to have the
+   variable at all. As we execv() into init_next, this memory leak is of
+   no concern to us.
+  init_next: replace init with this binary at this late stage.
+ replace_init() #FRCDNOTES0001.0a
+
+#FRCDNOTES0001.0b "wHaT iS tHiS gArBaGe?"
+  this appears to be internal code that uses a hack to allow
+ execute_script()
+  to try executing directly first, then fall back on using /bin/sh.
+  all I can say is, what is this garbage? we are keeping it (unlike the 
+  gettys code) as we depend on it to have a minimum-change derivative
+  of init that serves the goal of s1initd of executing SDI, giving the
+  S runlevel in case of emergency, then execv'ing into s2initd
+  (prototypically svscan, but could be any such program).
+
+#FRCDNOTES0001.0c Redundant stack address is redundant.
+ initial_transition = defer runcom()
+  As we never jump into the initial transition of running runcom (.0d)
+  and then read_ttys (.0e), this address may be redundant. (Hold that
+  thought, girlie.)
+  Instead, we run SDI (runcom) from main().
+
+#FRCDNOTES0001.0d Runcom
+ run_script(_PATH_RUNCOM)
+
+#FRCDNOTES0002.01 int devfs <1
+   Wrong explanation.
+  The d flag to init tells init that devfs is already mounted and not to
+  bother mounting it again.
+   Right explanation.
+ 

@@ -122,6 +122,7 @@ typedef state_func_t (*state_t)(void);
 static state_func_t single_user(void);
 static state_func_t runcom(void);
 static state_func_t read_ttys(void);
+static state_func_t init_next(void); //#FRCDNOTES0003.01
 static state_func_t multi_user(void);
 static state_func_t clean_ttys(void);
 static state_func_t catatonia(void);
@@ -140,6 +141,8 @@ static int Reboot = FALSE;
 static int howto = RB_AUTOBOOT;
 
 static int devfs;
+static int svscan_mode;
+static int svscan_shutdown_mode;
 static char *init_path_argv0;
 
 static void transition(state_t);
@@ -203,11 +206,13 @@ static DB *session_db;
 int
 main(int argc, char *argv[])
 {
-	state_t initial_transition = runcom;
+	state_t initial_transition = runcom;	//#FRCDNOTES0001.0c
 	char kenv_value[PATH_MAX];
 	int c, error;
 	struct sigaction sa;
 	sigset_t mask;
+	svscan_mode = 0; //#FRCDNOTES0003.02
+	svscan_shutdown_mode = 0; //#FRCDNOTES0003.04
 
 	/* Dispose of random users. */
 	if (getuid() != 0)
@@ -254,6 +259,35 @@ invalid:
 			errx(1, "already running");
 	}
 
+	/*
+	 * This code assumes that we always get arguments through flags,
+	 * never through bits set in some random machine register.
+	 */
+	// #FRCDNOTES0001.03
+	while ((c = getopt(argc, argv, "dsfrq")) != -1)
+		switch (c) {
+		case 'q':
+			svscan_shutdown_mode = 1;
+			break;
+		case 'd':
+			devfs = 1;
+			break;
+		case 's':
+			initial_transition = single_user;
+			break;
+		case 'f':
+			runcom_mode = FASTBOOT;
+			break;
+		case 'r':
+			initial_transition = reroot_phase_two;
+			break;
+		default:
+			warning("unrecognized flag '-%c'", c);
+			break;
+		}
+
+	//if (svscan_shutdown_mode) initial_transition = (state_func_t) ;
+
 	// #FRCDNOTES0001.01
 	init_path_argv0 = strdup(argv[0]);
 	if (init_path_argv0 == NULL)
@@ -278,30 +312,6 @@ invalid:
 	 */
 	if (setlogin("root") < 0)
 		warning("setlogin() failed: %m");
-
-	/*
-	 * This code assumes that we always get arguments through flags,
-	 * never through bits set in some random machine register.
-	 */
-	// #FRCDNOTES0001.03
-	while ((c = getopt(argc, argv, "dsfr")) != -1)
-		switch (c) {
-		case 'd':
-			devfs = 1;
-			break;
-		case 's':
-			initial_transition = single_user;
-			break;
-		case 'f':
-			runcom_mode = FASTBOOT;
-			break;
-		case 'r':
-			initial_transition = reroot_phase_two;
-			break;
-		default:
-			warning("unrecognized flag '-%c'", c);
-			break;
-		}
 
 	if (optind != argc)
 		warning("ignoring excess arguments");
@@ -419,32 +429,26 @@ invalid:
 			warning("Cannot unmount %s: %m", _PATH_REROOT);
 	}
 
+	if (kenv(KENV_GET, "init_svscan_mode", kenv_value, sizeof(kenv_value)) > 0) {
+		if (kenv_value[0] == 'Y' || kenv_value[0] == 'y') svscan_mode++;
+	}
+
 	/*
 	 * Start the state machine.
 	 * FALSIX TODO: Instead, re-execute init_next.
 	 */
-	// #FRCDNOTES0001.09
-	if (kenv(KENV_GET, "rc_script", kenv_value, sizeof(kenv_value)) > 0) {
-		state_func_t next_transition;
+	// #FRCDNOTES0001.09 code moved -> runcom()
 
-		if ((next_transition = run_script(kenv_value)) != NULL)
-			initial_transition = (state_t) next_transition;
-	} else {
-		state_func_t next_transition;
+	//#FRCDNOTES0001.0f
+	transition(initial_transition); // NOTE: usually runcom
 
-		if ((next_transition = run_script(_PATH_RUNCOM)) != NULL)
-			initial_transition = (state_t) next_transition;
-	}
-
-	//transition(initial_transition);
-
-	if (kenv(KENV_GET, "init_next", kenv_value, sizeof(kenv_value)) > 0) {
+	/*if (kenv(KENV_GET, "init_next", kenv_value, sizeof(kenv_value)) > 0) {
 		replace_init(kenv_value);
-		_exit(0); /* reboot if not */
+		_exit(0);
 	} else {
 		replace_init(_PATH_INITNEXT);
-		_exit(0); /* reboot if not*/
-	}
+		_exit(0);
+	}*/ //#FRCDNOTES0003.03
 
 	/*
 	 * Should never reach here.
@@ -1057,13 +1061,23 @@ single_user(void)
 static state_func_t
 runcom(void)
 {
+	//#FRCDNOTES0001.0d
 	state_func_t next_transition;
+	char kenv_value[PATH_MAX];
 
-	if ((next_transition = run_script(_PATH_RUNCOM)) != NULL)
-		return next_transition;
+	if (kenv(KENV_GET, "rc_script", kenv_value, sizeof(kenv_value)) > 0) {
+		if ((next_transition = run_script(kenv_value)) != NULL)
+			return next_transition;
+	} else {
+		if ((next_transition = run_script(_PATH_RUNCOM)) != NULL)
+			return next_transition;
+	}
 
 	runcom_mode = AUTOBOOT;		/* the default */
-	return (state_func_t) read_ttys;
+	if (svscan_mode)
+		return (state_func_t) init_next;
+	else
+		return (state_func_t) read_ttys;
 }
 
 static void
@@ -1412,6 +1426,42 @@ setupargv(session_t *sp, struct ttyent *typ)
 		free(sp->se_type);
 	sp->se_type = typ->ty_type ? strdup(typ->ty_type) : 0;
 	return (1);
+}
+
+static state_func_t
+init_next(void)
+{
+	pid_t pid;
+	char *argv[4];
+	const char *shell;
+	char script[PATH_MAX];
+
+	if (kenv(KENV_GET, "late_rc_script", script, sizeof(script)) < 1) {
+		strlcpy(script, _PATH_RUNLATE, PATH_MAX);
+	}
+
+	shell = get_shell();
+	// Execute SDI2. #FRCDNOTES0005.02
+	if ((pid = fork()) == 0) {
+
+		char _sh[]		= "sh"; // could be execline?
+
+		argv[0] = _sh;
+		argv[1] = __DECONST(char *, script);
+		argv[2] = NULL;
+
+		execute_script(argv);
+		sleep(STALL_TIMEOUT);
+		_exit(1);	/* force single user mode..? */
+	}
+
+	if (kenv(KENV_GET, "init_next", script, sizeof(script)) < 1) {
+		strlcpy(script, _PATH_INITNEXT, PATH_MAX);
+	}
+	replace_init(script);
+
+	sleep(STALL_TIMEOUT); //NOTREACHED #FRCDNOTES0005.03
+	return (state_func_t) single_user;
 }
 
 /*

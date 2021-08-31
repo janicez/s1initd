@@ -1,0 +1,7 @@
+etcdir
+*.depend*
+*.o
+init
+frcd-s1initd
+run.*
+createfile

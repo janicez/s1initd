@@ -1,0 +1,41 @@
+#!/bin/sh
+# $1 must be the command "rebuild"
+do=true
+case $1 in
+ [rR][eE][bB]*)
+  # 3 = source directory
+  # 2 = scan directory
+  # 4 = service list
+  srvscandir=$2
+  srvlist=${3-}
+  if test -z "$srvscandir" || test \! -d "$srvscandir"; then
+    echo "requires a scandirectory which is a directory and list argument"
+    exit 100
+  fi
+  if test -z "$srvlist" || test \! -f "$srvlist"; then
+    echo "requires a list argument which is a file or files in addition to a scandirectory"
+    exit 100
+  fi
+  i="\$i"
+  for i in $srvscandir/*; do  unlink $i; done; grep -v '^#' $srvlist 2>/dev/null|while read i; do  ln -s $i $srvscandir; done
+ ;;
+ [rR][eE][lL]*)
+  /package/admin/s6/command/s6-svscanctl -a $2
+ ;;
+ *)
+  sed -e "s;%%1%%;$0;g" << EOF
+Usage: %%1%% command arguments
+Subcommands:
+
+    rebuild scan list
+        Rebuild s6/runit scan directory scan, from paths, one per line, in
+        the regular text file list.
+
+        Suggest using a tmpfs as the directory is nuked with every invocation.
+    reload scan
+        s6-specific: Ask svscan running in scan to reload its configuration.
+     - anything else
+        produce this message
+EOF
+ ;;
+esac

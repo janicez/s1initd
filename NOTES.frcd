@@ -85,9 +85,36 @@ Which of these are internal, and which of these are external?
 #FRCDNOTES0001.0d Runcom
  run_script(_PATH_RUNCOM)
 
+#FRCDNOTES0001.0f Redundant transition?
+ transition(initial_transition)
+  As we already run our own RUNCOM (rc_script; SDI) by ourselves, intuitively
+  this invocation should be redundant, but it's not. initial_transition
+  is set to the single user routine (run up /bin/sh) if runcom falls over.  
+
 #FRCDNOTES0002.01 int devfs <1
    Wrong explanation.
   The d flag to init tells init that devfs is already mounted and not to
   bother mounting it again.
-   Right explanation.
- 
+
+#FRCDNOTES0003.01 New direction
+  we're now going to implement svscan mode a different way, which won't allow 
+  pruning any code out of s1initd at first (it'll have to be able to function
+  like ordinary init if it's not given the go to exec into svscan).
+
+#FRCDNOTES0003.02 By default, set svscan_mode to 0.
+  This is the symbol that will decide if the next step after runcom is
+  fork/exec(runcom2) and exec(svscan) or tty supervision. It'll be set 1
+  if the first character in kernel environment variable
+   'init_svscan_mode' is the letter Y in either case.
+
+#FRCDNOTES0003.03 This was a mistake
+  This code path was a mistake and has been made a comment.
+
+#FRCDNOTES0003.04 By default, set svscan_shutdown_mode to 0.
+  If we're invoked by svscan as init -q, set this to 1 and make our initial
+  transition the one we run after clean_ttys (these would've already been
+  cleaned for us as svscan was the supervisor to the ttys). This step will
+  also need to run sdi stage 3, the shutdown scripts (/etc/sdi/rc.shutdown).
+
+#FRCDNOTES0005.03 NOTREACHED.
+  This code path should not be reached.

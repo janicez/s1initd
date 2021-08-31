@@ -39,9 +39,10 @@
 
 #define	_PATH_INITLOG		"/var/log/init.log"
 #define	_PATH_SLOGGER		"/sbin/session_logger"
-#define	_PATH_RUNCOM		"/etc/rc"
-#define	_PATH_INITNEXt		"/initnext" // XXX: symlink to service supervisor
-#define	_PATH_RUNDOWN		"/etc/rc.shutdown"
-#define	_PATH_RUNFINAL		"/etc/rc.final"
+#define	_PATH_RUNCOM		PREFIX "/etc/sdi/sdi1"
+#define	_PATH_RUNLATE		PREFIX "/etc/sdi/sdi2" // XXX: should block until supervisor up
+#define	_PATH_INITNEXT		"/sbin/initnext" // XXX: symlink to service supervisor
+#define	_PATH_RUNDOWN		PREFIX "/etc/sdi/rc.shutdown"
+#define	_PATH_RUNFINAL		PREFIX "/etc/sdi/rc.final"
 #define	_PATH_REROOT		"/dev/reroot"
 #define	_PATH_REROOT_INIT	_PATH_REROOT "/init"
